@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>સુડોકુ Pro</title>
+<style>
+:root{
+  --bg:#0d0d12; --panel:#181822; --cell:#20202c;
+  --line:#34344b; --gold:#d7b46a; --green:#53e3b0;
+  --red:#ff4d67; --blue:#8db8ff;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);color:white;font-family:sans-serif;
+  display:flex;justify-content:center;min-height:100vh;padding:16px 10px 40px;
+}
+.container{width:100%;max-width:620px;}
+.title{text-align:center;font-size:36px;font-weight:900;color:var(--gold);margin-bottom:12px;}
+
+/* ── TOPBAR ── */
+.topbar{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--panel);border-radius:14px;padding:12px 16px;margin-bottom:12px;
+}
+#timer{font-size:26px;font-weight:900;color:var(--gold);}
+#status{font-size:13px;text-align:right;max-width:60%;}
+
+/* ── BOARD ── */
+.board-wrap{background:var(--panel);padding:12px;border-radius:18px;margin-bottom:10px;}
+#board{
+  display:grid;grid-template-columns:repeat(9,1fr);
+  border:3px solid var(--gold);border-radius:8px;overflow:hidden;
+}
+.cell{position:relative;aspect-ratio:1;border:1px solid var(--line);background:var(--cell);}
+.cell:nth-child(3n){border-right:3px solid #515172;}
+.cell:nth-child(9n){border-right:1px solid var(--line);}
+.cell:nth-child(n+19):nth-child(-n+27),
+.cell:nth-child(n+46):nth-child(-n+54){border-bottom:3px solid #515172;}
+
+.cell input{
+  position:absolute;inset:0;width:100%;height:100%;
+  border:none;outline:none;background:transparent;
+  text-align:center;font-size:clamp(15px,3.5vw,28px);
+  font-weight:900;caret-color:var(--gold);cursor:pointer;
+}
+.cell input:focus{background:rgba(215,180,106,0.22)!important;box-shadow:inset 0 0 0 2px var(--gold);z-index:10;}
+
+.manual{color:white!important;font-weight:900!important;}
+.solved{color:var(--green)!important;font-weight:700!important;}
+.hinted{color:#ffd166!important;font-weight:900!important;}
+.error{color:var(--red)!important;animation:shake .18s linear infinite;}
+.hl-cell{background:rgba(141,184,255,0.22)!important;}
+
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-1px)}75%{transform:translateX(1px)}}
+
+/* ── NOTES ── */
+.notes{
+  position:absolute;inset:0;
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  padding:1px;pointer-events:none;
+}
+.note{
+  display:flex;justify-content:center;align-items:center;
+  font-size:clamp(6px,1.2vw,10px);color:var(--blue);font-weight:700;
+  transition:color 0.12s;
+}
+.note.note-hl{color:var(--green)!important;font-weight:900!important;}
+
+/* ── NUMPAD: 2 rows × 5 cols — મોટા બટન ── */
+.numpad{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:7px;
+  background:var(--panel);padding:12px;border-radius:14px;margin-bottom:10px;
+}
+.numpad button{
+  background:#252535;color:white;border:none;border-radius:12px;
+  padding:16px 4px;font-size:clamp(20px,4.5vw,30px);font-weight:800;
+  cursor:pointer;transition:all 0.12s;
+}
+.numpad button:active{transform:scale(0.9);background:#333350;}
+.numpad .del-btn{color:var(--red);font-size:clamp(18px,4vw,26px);}
+
+/* ── CONTROLS ── */
+.ctrl-row1{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;}
+.ctrl-row2{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+
+button{
+  border:none;border-radius:12px;padding:13px 6px;
+  font-size:13px;font-weight:800;cursor:pointer;transition:all 0.15s;
+}
+button:active{transform:scale(0.95);}
+#startBtn{background:#5b66ff;color:white;}
+#solveBtn{background:#4ed39b;color:black;}
+#noteBtn{background:#252535;color:white;}
+#autoNoteBtn{background:#252535;color:#9ed1ff;}
+#hintBtn{background:#252535;color:#ffd166;}
+#clearBtn{background:#252535;color:#ff8a8a;}
+.btn-active{outline:2px solid #8db8ff;}
+
+.info{text-align:center;color:#6a6a88;margin-top:6px;font-size:11px;}
+
+/* ── HINT POPUP ── */
+.hint-popup{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:#14142a;border:2px solid var(--gold);border-radius:20px;
+  padding:18px 18px 20px;max-width:370px;width:93%;
+  z-index:9999;display:none;box-shadow:0 10px 50px rgba(0,0,0,0.85);
+}
+.hint-popup.show{display:block;animation:slideUp .28s ease;}
+@keyframes slideUp{
+  from{transform:translateX(-50%) translateY(18px);opacity:0}
+  to{transform:translateX(-50%) translateY(0);opacity:1}
+}
+.hint-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.hint-label{color:var(--gold);font-size:15px;font-weight:900;}
+.hint-x{background:transparent;border:none;color:#777;font-size:20px;cursor:pointer;padding:0;line-height:1;}
+.hint-big{font-size:56px;font-weight:900;color:var(--green);text-align:center;margin:4px 0 6px;
+  text-shadow:0 0 20px rgba(83,227,176,0.5);}
+.hint-loc{text-align:center;font-size:12px;color:#888;margin-bottom:10px;}
+.hint-box{background:#1e1e34;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.7;color:#ccc;}
+.hint-box b{color:var(--gold);}
+.hint-box .used-nums{color:#8db8ff;font-weight:700;}
+
+/* ── CONGRATS ── */
+.congrats-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,0.85);
+  display:none;align-items:center;justify-content:center;
+  z-index:9998;backdrop-filter:blur(5px);
+}
+.congrats-bg.show{display:flex;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.congrats-card{
+  background:#14142a;border:2px solid var(--gold);border-radius:26px;
+  padding:38px 34px;text-align:center;max-width:310px;width:90%;
+  box-shadow:0 0 70px rgba(215,180,106,0.22);
+  animation:popIn .38s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes popIn{from{transform:scale(0.55)}to{transform:scale(1)}}
+.cg-emoji{font-size:62px;margin-bottom:10px;}
+.cg-title{font-size:30px;font-weight:900;color:var(--gold);margin-bottom:4px;}
+.cg-time{font-size:14px;color:#888;margin-bottom:6px;}
+.cg-msg{font-size:13px;color:#aaa;margin-bottom:22px;line-height:1.5;}
+.cg-btn{
+  background:linear-gradient(135deg,var(--gold),#b87a10);
+  color:#000;border:none;padding:13px 38px;
+  border-radius:50px;font-size:16px;font-weight:900;cursor:pointer;
+}
+
+@media(max-width:380px){
+  .ctrl-row2{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="title">સુડોકુ Pro</div>
+
+  <div class="topbar">
+    <div id="timer">00:00</div>
+    <div id="status">સુડોકુ ઉમેરો ▸ શરૂ દબાવો</div>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+
+  <!-- 1–9 + ⌫ : 2 rows × 5 cols -->
+  <div class="numpad" id="numpad"></div>
+
+  <div class="ctrl-row1">
+    <button id="startBtn">▶ શરૂ</button>
+    <button id="solveBtn">⚡ ઓટો સોલ્વ</button>
+  </div>
+  <div class="ctrl-row2">
+    <button id="noteBtn">✏️ નોટ</button>
+    <button id="autoNoteBtn">🔢 ઓટો નોટ</button>
+    <button id="hintBtn">💡 હિંટ</button>
+    <button id="clearBtn">🗑 ક્લિયર</button>
+  </div>
+  <div class="info">સફેદ = મેન્યુઅલ &nbsp;|&nbsp; લીલો = સાચો &nbsp;|&nbsp; લાલ = ખોટો &nbsp;|&nbsp; નીલો = નોટ</div>
+</div>
+
+<!-- Hint Popup -->
+<div class="hint-popup" id="hintPopup">
+  <div class="hint-top">
+    <div class="hint-label">💡 હિંટ</div>
+    <button class="hint-x" onclick="closeHint()">✕</button>
+  </div>
+  <div class="hint-big" id="hintNum">?</div>
+  <div class="hint-loc" id="hintLoc"></div>
+  <div class="hint-box" id="hintExplain"></div>
+</div>
+
+<!-- Congrats Modal -->
+<div class="congrats-bg" id="congratsBg">
+  <div class="congrats-card">
+    <div class="cg-emoji">🎉</div>
+    <div class="cg-title">શાબાશ!</div>
+    <div class="cg-time" id="cgTime">સમય: 00:00</div>
+    <div class="cg-msg">તમે સુડોકુ સફળતાપૂર્વક<br>પૂર્ણ કર્યું!</div>
+    <button class="cg-btn" onclick="closeCongrats()">✓ આભાર!</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════
+//  STATE
+// ═══════════════════════════════
+let grid     = Array(81).fill(0);
+let solution = Array(81).fill(0);
+let notes    = Array.from({length:81}, ()=>[]);
+let selected = -1;
+let noteMode = false;
+let started  = false;
+let timer    = null;
+let sec      = 0;
+
+// ═══════════════════════════════
+//  HELPERS
+// ═══════════════════════════════
+function setStatus(t){ document.getElementById("status").innerText = t; }
+function formatTime(s){ return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+function startTimer(){ if(timer)return; timer=setInterval(()=>{ sec++; document.getElementById("timer").innerText=formatTime(sec); },1000); }
+function stopTimer(){ clearInterval(timer); timer=null; }
+
+// ═══════════════════════════════
+//  BUILD BOARD
+// ═══════════════════════════════
+const boardEl = document.getElementById("board");
+const cells   = [];
+
+for(let i=0;i<81;i++){
+  const cell     = document.createElement("div");
+  cell.className = "cell";
+
+  const notesDiv     = document.createElement("div");
+  notesDiv.className = "notes";
+  for(let n=1;n<=9;n++){
+    const nd=document.createElement("div");
+    nd.className="note";
+    notesDiv.appendChild(nd);
+  }
+
+  const input    = document.createElement("input");
+  input.type     = "tel";
+  input.readOnly = true;
+  input.pattern  = "[1-9]*";
+
+  input.addEventListener("focus",()=>{
+    selected = i;
+    highlightAll(grid[i]);
+  });
+
+  input.addEventListener("input", e=>{
+    let val = e.target.value.replace(/[^1-9]/g,"");
+    if(val.length>1) val=val[0];
+    e.target.value = val;
+
+    if(val===""){
+      grid[i]=0;
+      input.classList.remove("manual","solved","error");
+      clearNotes(i);
+      highlightAll(0);
+      return;
+    }
+
+    const num = parseInt(val);
+
+    if(noteMode){
+      e.target.value="";
+      toggleNote(i,num);
+      return;
+    }
+
+    grid[i]=num;
+    input.classList.remove("solved","error");
+    input.classList.add("manual");
+    removePeerNotes(i,num);
+    if(started) checkAnswer(i);
+    highlightAll(num);
+  });
+
+  cell.appendChild(notesDiv);
+  cell.appendChild(input);
+  boardEl.appendChild(cell);
+  cells.push({input, notesDiv});
+}
+
+// ═══════════════════════════════
+//  HIGHLIGHT: cells + notes
+// ═══════════════════════════════
+function highlightAll(num){
+  cells.forEach((c,i)=>{
+    c.input.classList.remove("hl-cell");
+    if(num && c.input.value===num.toString()){
+      c.input.classList.add("hl-cell");
+    }
+    const noteSpans = c.notesDiv.children;
+    for(let n=1;n<=9;n++) noteSpans[n-1].classList.remove("note-hl");
+    if(num && !grid[i] && notes[i].includes(num)){
+      noteSpans[num-1].classList.add("note-hl");
+    }
+  });
+}
+
+// ═══════════════════════════════
+//  NUMPAD — 2 rows × 5 cols
+// ═══════════════════════════════
+const numpadEl = document.getElementById("numpad");
+for(let n=1;n<=10;n++){
+  const btn=document.createElement("button");
+  if(n===10){ btn.innerHTML="⌫"; btn.classList.add("del-btn"); }
+  else btn.innerText=n;
+  btn.onclick=()=>{
+    if(selected<0) return;
+    const inp=cells[selected].input;
+    if(inp.dataset.locked) return;
+    inp.focus();
+    inp.value = (n===10)?"":n;
+    inp.dispatchEvent(new Event("input"));
+  };
+  numpadEl.appendChild(btn);
+}
+
+// ═══════════════════════════════
+//  NOTE MODE
+// ═══════════════════════════════
+document.getElementById("noteBtn").onclick=()=>{
+  noteMode=!noteMode;
+  document.getElementById("noteBtn").classList.toggle("btn-active",noteMode);
+  setStatus(noteMode?"✏️ નોટ મોડ ચાલુ":"નોટ મોડ બંધ");
+};
+
+function toggleNote(idx,num){
+  if(grid[idx]) return;
+  const arr=notes[idx];
+  if(arr.includes(num)) arr.splice(arr.indexOf(num),1);
+  else arr.push(num);
+  renderNotes(idx);
+}
+
+function renderNotes(idx){
+  const spans=cells[idx].notesDiv.children;
+  for(let i=1;i<=9;i++) spans[i-1].innerText=notes[idx].includes(i)?i:"";
+}
+
+function clearNotes(idx){ notes[idx]=[]; renderNotes(idx); }
+
+function removePeerNotes(index,num){
+  clearNotes(index);
+  const row=Math.floor(index/9), col=index%9;
+  for(let i=0;i<9;i++){ removeSingle(row*9+i,num); removeSingle(i*9+col,num); }
+  const br=Math.floor(row/3)*3, bc=Math.floor(col/3)*3;
+  for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++) removeSingle(r*9+c,num);
+}
+
+function removeSingle(idx,num){
+  if(notes[idx].includes(num)){ notes[idx]=notes[idx].filter(x=>x!==num); renderNotes(idx); }
+}
+
+// ═══════════════════════════════
+//  AUTO NOTE
+// ═══════════════════════════════
+document.getElementById("autoNoteBtn").onclick=()=>{ generateAutoNotes(); setStatus("ઓટો નોટ ઉમેરાઈ ✨"); };
+
+function generateAutoNotes(){
+  for(let i=0;i<81;i++){
+    if(grid[i]){ clearNotes(i); continue; }
+    notes[i]=getCandidates(i);
+    renderNotes(i);
+  }
+  highlightAll(selected>=0 ? grid[selected] : 0);
+}
+
+// ═══════════════════════════════
+//  CANDIDATES
+// ═══════════════════════════════
+function getCandidates(index){
+  if(grid[index]) return [];
+  const row=Math.floor(index/9), col=index%9, used=new Set();
+  for(let i=0;i<9;i++){
+    if(grid[row*9+i]) used.add(grid[row*9+i]);
+    if(grid[i*9+col]) used.add(grid[i*9+col]);
+  }
+  const br=Math.floor(row/3)*3, bc=Math.floor(col/3)*3;
+  for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++) if(grid[r*9+c]) used.add(grid[r*9+c]);
+  return [1,2,3,4,5,6,7,8,9].filter(n=>!used.has(n));
+}
+
+// ═══════════════════════════════
+//  SOLVER
+// ═══════════════════════════════
+function valid(board,pos,num){
+  const row=Math.floor(pos/9),col=pos%9;
+  for(let i=0;i<9;i++){ if(board[row*9+i]===num||board[i*9+col]===num) return false; }
+  const br=Math.floor(row/3)*3,bc=Math.floor(col/3)*3;
+  for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++) if(board[r*9+c]===num) return false;
+  return true;
+}
+
+function solve(board){
+  for(let i=0;i<81;i++){
+    if(board[i]===0){
+      for(let n=1;n<=9;n++){
+        if(valid(board,i,n)){ board[i]=n; if(solve(board)) return true; board[i]=0; }
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+// ═══════════════════════════════
+//  START
+// ═══════════════════════════════
+document.getElementById("startBtn").onclick=()=>{
+  const temp=[...grid];
+  if(!solve(temp)){ setStatus("❌ ખોટું સુડોકુ"); return; }
+  solution=[...temp]; started=true;
+  for(let i=0;i<81;i++) if(grid[i]!==0) cells[i].input.dataset.locked="true";
+  startTimer();
+  setStatus("✅ સુડોકુ ઉકેલો!");
+};
+
+// ═══════════════════════════════
+//  CHECK ANSWER
+// ═══════════════════════════════
+function checkAnswer(idx){
+  const inp=cells[idx].input;
+  if(grid[idx]!==solution[idx]){
+    inp.classList.add("error");
+    if(navigator.vibrate) navigator.vibrate(100);
+  } else {
+    inp.classList.remove("error","manual");
+    inp.classList.add("solved");
+    inp.dataset.locked="true";
+    checkComplete();
+  }
+}
+
+function checkComplete(){
+  for(let i=0;i<81;i++) if(grid[i]!==solution[i]) return;
+  stopTimer();
+  setStatus("🎉 શાબાશ! સુડોકુ પૂર્ણ!");
+  document.getElementById("cgTime").innerText="સમય: "+formatTime(sec);
+  document.getElementById("congratsBg").classList.add("show");
+}
+
+function closeCongrats(){ document.getElementById("congratsBg").classList.remove("show"); }
+
+// ═══════════════════════════════
+//  AUTO SOLVE
+// ═══════════════════════════════
+document.getElementById("solveBtn").onclick=()=>{
+  const temp=[...grid];
+  if(!solve(temp)){ setStatus("⚠️ સોલ્વ શક્ય નથી"); return; }
+  solution=[...temp];
+  for(let i=0;i<81;i++){
+    grid[i]=solution[i];
+    cells[i].input.value=solution[i];
+    cells[i].input.classList.remove("manual","error");
+    cells[i].input.classList.add("solved");
+    cells[i].input.dataset.locked="true";
+    clearNotes(i);
+  }
+  stopTimer();
+  document.getElementById("cgTime").innerText="ઓટો સોલ્વ | સમય: "+formatTime(sec);
+  document.getElementById("congratsBg").classList.add("show");
+};
+
+// ═══════════════════════════════
+//  HINT — fixed & robust
+// ═══════════════════════════════
+document.getElementById("hintBtn").onclick = giveHint;
+
+function getRowUsed(row){ return [...Array(9)].map((_,c)=>grid[row*9+c]).filter(v=>v>0).sort((a,b)=>a-b); }
+function getColUsed(col){ return [...Array(9)].map((_,r)=>grid[r*9+col]).filter(v=>v>0).sort((a,b)=>a-b); }
+function getBoxUsed(idx){
+  const br=Math.floor(Math.floor(idx/9)/3)*3, bc=Math.floor((idx%9)/3)*3, res=[];
+  for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++) if(grid[r*9+c]) res.push(grid[r*9+c]);
+  return res.sort((a,b)=>a-b);
+}
+
+function buildNakedExplain(idx, answerNum){
+  const row=Math.floor(idx/9), col=idx%9;
+  const ru=getRowUsed(row), cu=getColUsed(col), bu=getBoxUsed(idx);
+  let html=`<b>1 થી 9 ની તપાસ:</b><br><br>`;
+  for(let n=1;n<=9;n++){
+    const inRow=ru.includes(n), inCol=cu.includes(n), inBox=bu.includes(n);
+    if(n===answerNum){
+      html+=`✅ <b style="color:#53e3b0">${n}</b> — ક્યાંય Block નથી → <b style="color:#53e3b0">આ ખાનામાં ${n}!</b><br>`;
+    } else {
+      const parts=[];
+      if(inRow) parts.push(`Row ${row+1}`);
+      if(inCol) parts.push(`Col ${col+1}`);
+      if(inBox) parts.push(`Box`);
+      if(parts.length)
+        html+=`❌ <b>${n}</b> — <span class="used-nums">${parts.join(" + ")}</span> માં પહેલેથી છે<br>`;
+      else
+        html+=`⚪ <b>${n}</b> — Block નથી, પણ સ્થાન-વિશ્લેષણ મુજબ ફીટ નહીં<br>`;
+    }
+  }
+  html+=`<br>🔴 Row ${row+1}: <span class="used-nums">[${ru.join(", ")}]</span><br>`;
+  html+=`🔵 Col ${col+1}: <span class="used-nums">[${cu.join(", ")}]</span><br>`;
+  html+=`🟡 Box: <span class="used-nums">[${bu.join(", ")}]</span>`;
+  return html;
+}
+
+function giveHint(){
+  const temp=[...grid];
+  if(!solve(temp)){ setStatus("❌ ખોટું સુડોકુ — પહેલા ભૂલ સુધારો"); return; }
+
+  // 1. Naked Single
+  for(let i=0;i<81;i++){
+    if(grid[i]) continue;
+    const cands=getCandidates(i);
+    if(cands.length===1){
+      const num=cands[0], row=Math.floor(i/9), col=i%9;
+      showHint(num, `📍 Row ${row+1}, Col ${col+1}`, buildNakedExplain(i,num), i);
+      return;
+    }
+  }
+
+  // 2. Hidden Single in Row
+  for(let row=0;row<9;row++){
+    for(let num=1;num<=9;num++){
+      const spots=[];
+      for(let col=0;col<9;col++){ const i=row*9+col; if(!grid[i]&&getCandidates(i).includes(num))spots.push({i,col}); }
+      if(spots.length===1){
+        const {i,col}=spots[0];
+        let d=`<b>Row ${row+1} માં ${num} ક્યાં આવી શકે?</b><br><br>`;
+        for(let c=0;c<9;c++){
+          const ci=row*9+c;
+          if(grid[ci]) d+=`Col ${c+1}: [${grid[ci]}] ભરેલ<br>`;
+          else if(c===col) d+=`✅ <b style="color:#53e3b0">Col ${c+1}: ${num} ← ફક્ત અહીં!</b><br>`;
+          else d+=`❌ Col ${c+1}: <span class="used-nums">${num} Block</span><br>`;
+        }
+        d+=`<br>→ <b>Row ${row+1}, Col ${col+1} = ${num}</b>`;
+        showHint(num, `📍 Row ${row+1}, Col ${col+1}`, d, i);
+        return;
+      }
+    }
+  }
+
+  // 3. Hidden Single in Column
+  for(let col=0;col<9;col++){
+    for(let num=1;num<=9;num++){
+      const spots=[];
+      for(let row=0;row<9;row++){ const i=row*9+col; if(!grid[i]&&getCandidates(i).includes(num))spots.push({i,row}); }
+      if(spots.length===1){
+        const {i,row}=spots[0];
+        let d=`<b>Col ${col+1} માં ${num} ક્યાં આવી શકે?</b><br><br>`;
+        for(let r=0;r<9;r++){
+          const ci=r*9+col;
+          if(grid[ci]) d+=`Row ${r+1}: [${grid[ci]}] ભરેલ<br>`;
+          else if(r===row) d+=`✅ <b style="color:#53e3b0">Row ${r+1}: ${num} ← ફક્ત અહીં!</b><br>`;
+          else d+=`❌ Row ${r+1}: <span class="used-nums">${num} Block</span><br>`;
+        }
+        d+=`<br>→ <b>Row ${row+1}, Col ${col+1} = ${num}</b>`;
+        showHint(num, `📍 Row ${row+1}, Col ${col+1}`, d, i);
+        return;
+      }
+    }
+  }
+
+  // 4. Hidden Single in Box
+  for(let box=0;box<9;box++){
+    const br=Math.floor(box/3)*3, bc=(box%3)*3;
+    for(let num=1;num<=9;num++){
+      const spots=[];
+      for(let r=br;r<br+3;r++) for(let c=bc;c<bc+3;c++){ const i=r*9+c; if(!grid[i]&&getCandidates(i).includes(num))spots.push({i,r,c}); }
+      if(spots.length===1){
+        const {i,r,c}=spots[0];
+        let d=`<b>3×3 Box માં ${num} ક્યાં આવી શકે?</b><br><br>`;
+        for(let rr=br;rr<br+3;rr++) for(let cc=bc;cc<bc+3;cc++){
+          const ci=rr*9+cc;
+          if(grid[ci]) d+=`R${rr+1}C${cc+1}: [${grid[ci]}] ભરેલ<br>`;
+          else if(rr===r&&cc===c) d+=`✅ <b style="color:#53e3b0">R${rr+1}C${cc+1}: ${num} ← ફક્ત અહીં!</b><br>`;
+          else d+=`❌ R${rr+1}C${cc+1}: <span class="used-nums">${num} Block</span><br>`;
+        }
+        d+=`<br>→ <b>Row ${r+1}, Col ${c+1} = ${num}</b>`;
+        showHint(num, `📍 Row ${r+1}, Col ${c+1}`, d, i);
+        return;
+      }
+    }
+  }
+
+  // Fallback
+  const empties=[];
+  for(let i=0;i<81;i++) if(!grid[i]) empties.push(i);
+  if(empties.length){
+    const i=empties[Math.floor(Math.random()*empties.length)];
+    const num=temp[i];
+    const row=Math.floor(i/9), col=i%9;
+    showHint(num, `📍 Row ${row+1}, Col ${col+1}`, buildNakedExplain(i,num), i);
+  } else {
+    setStatus("✅ બધા ખાનાં ભરેલ છે!");
+  }
+}
+
+function fillHintCell(idx, num){
+  grid[idx]=num;
+  cells[idx].input.value=num;
+  cells[idx].input.classList.remove("manual","error","solved");
+  cells[idx].input.classList.add("hinted");
+  if(started) cells[idx].input.dataset.locked="true";
+  removePeerNotes(idx,num);
+  highlightAll(num);
+  if(started) checkComplete();
+}
+
+function showHint(num, loc, explain, cellIdx){
+  document.getElementById("hintNum").innerText     = num;
+  document.getElementById("hintLoc").innerText     = loc;
+  document.getElementById("hintExplain").innerHTML = explain;
+  document.getElementById("hintPopup").classList.add("show");
+  // ✅ ખાનું ઓટો-ફીલ
+  fillHintCell(cellIdx, num);
+}
+
+function closeHint(){ document.getElementById("hintPopup").classList.remove("show"); }
+
+// ═══════════════════════════════
+//  CLEAR
+// ═══════════════════════════════
+document.getElementById("clearBtn").onclick=()=>{
+  stopTimer(); sec=0;
+  document.getElementById("timer").innerText="00:00";
+  grid=Array(81).fill(0); solution=Array(81).fill(0);
+  notes=Array.from({length:81},()=>[]);
+  started=false; selected=-1;
+  for(let i=0;i<81;i++){
+    cells[i].input.value="";
+    cells[i].input.className="";
+    delete cells[i].input.dataset.locked;
+    clearNotes(i);
+  }
+  if(noteMode){ noteMode=false; document.getElementById("noteBtn").classList.remove("btn-active"); }
+  closeHint();
+  document.getElementById("congratsBg").classList.remove("show");
+  setStatus("સુડોકુ ક્લિયર — ફરી ઉમેરો");
+};
+</script>
+</body>
+</html>
